@@ -4,6 +4,10 @@ import groovy.util.logging.Slf4j
 import org.junit.Assume
 import org.junit.Test
 
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+
 import static org.junit.Assert.assertEquals
 import static org.junit.Assert.assertFalse
 import static org.junit.Assert.assertTrue
@@ -11,6 +15,7 @@ import static org.junit.Assert.assertTrue
 /**
  * @author Michal Hasko <mhasko@redhat.com>
  * @author Jan Blizňák <jbliznak@redhat.com>
+ * @author Peter Mačkay <pmackay@redhat.com>
  */
 @Slf4j
 class JBFileTest {
@@ -26,6 +31,8 @@ class JBFileTest {
   static File dirWithOnlyOneDir = new File(testStructureDir, "oneSubdir")
   static File dirWithOnlyTwoFiles = new File(testStructureDir, "twoFiles")
   static File dirWithOneFile = new File(dirWithOnlyOneDir, "oneFile")
+
+  static String LONG_FILE_NAME = "jbfile-test-file-with-a-really-really-really-long-name"
 
   @Test
   void testCleanDirectory() {
@@ -434,6 +441,41 @@ third line
     }
   }
 
+  @Test
+  void testCopyWithLongPaths() {
+    File tmpDir = null
+    File longDir = null
+
+    try {
+      tmpDir = initTestDir()
+      longDir = initLongPathsTestDir(tmpDir)
+      assertTrue("Copying of the file was not successful", JBFile.copy(new File(tmpDir, LONG_FILE_NAME), longDir))
+      assertTrue("Could not copy a file with a path longer longer than 256 characters.", new File(longDir, LONG_FILE_NAME).exists())
+      assertTrue("Additional unwanted files were copied.", longDir.list().length == 1)
+    } finally {
+      tmpDir?.deleteDir()
+    }
+  }
+
+  @Test
+  void testCopyDirectoryContentWithLongPaths() {
+    File tmpDir = null
+    File longDir = null
+
+    try {
+      tmpDir = initTestDir()
+      longDir = initLongPathsTestDir(tmpDir)
+
+      assertTrue("Copying of the files was not successful", JBFile.copyDirectoryContent(testStructureDir, longDir))
+
+      List files1 = getFilePathsRelativeTo(testStructureDir)
+      List files2 = getFilePathsRelativeTo(longDir)
+      assertTrue 'Source and destination directory must contain the same structure', files1 == files2
+    } finally {
+      tmpDir?.deleteDir()
+    }
+  }
+
   /**
    * Create temp test directory and fill it with some file structure
    */
@@ -456,6 +498,28 @@ third line
     File subDir3 = new File(subDir2, 'subdir3')
     subDir3.mkdirs()
     return tmpDir
+  }
+
+  /**
+   * Create a directory structure starting at the provided startingDir with
+   * an absolute path longer that 256 characters.
+   * Also creates a new file in startingDir with a long name.
+   *
+   * @param startingDir the directory in which the files will be generated
+   */
+  private static File initLongPathsTestDir(File startingDir) {
+    String prefix = "long_path_part_"
+
+    File fileWithLongName = new File(startingDir, LONG_FILE_NAME)
+    fileWithLongName.createNewFile()
+
+    Path longDir = startingDir.toPath()
+    int i = 1
+    while (longDir.toString().length() < 256) {
+      longDir = longDir.resolve(prefix + i++)
+    }
+    Files.createDirectories(longDir)
+    return longDir.toFile()
   }
 
   private static List getFilePathsRelativeTo(File dir) {

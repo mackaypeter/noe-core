@@ -92,8 +92,8 @@ class JBFile {
      */
     if (platform.isWindows()) {
       // Well, let's try it the native way instead :-)
-      def command = ["xcopy", "${dir.absolutePath}${File.separator}.", destDir.absolutePath, "/H", "/S", "/E", "/Y", "/C", "/I", "/F", "/R", "/K", "/X"]
-      return Cmd.executeCommand(command, new File('.')) == 0
+      def command = ["robocopy", "${dir.absolutePath}${File.separator}.", destDir.absolutePath, "/copy:DATSO", "/E"]
+      return Cmd.executeCommand(command, new File('.')) == 1
     } else {
       def command = ["cp", "-r", "${dir.absolutePath}${File.separator}.", destDir.absolutePath]
       if (preserveRights) command.addAll(1, "-p")
@@ -137,11 +137,16 @@ class JBFile {
     def returnValue = -1
 
     if (platform.isWindows()) {
+      File source = file.isDirectory() ? file : file.parentFile
       File dest = file.isDirectory() ? new File(destDir, file.name) : destDir
+      String filter = file.isDirectory() ? "" : file.name
+      String recursive = file.isDirectory() ? "/E" : ""
 
-      def command = ["xcopy", "${file.absolutePath}", dest.absolutePath, "/H", "/S", "/E", "/I", "/Y", "/C", "/F", "/R", "/K", "/X"]
+      def command = ["robocopy", source.absolutePath, dest.absolutePath, filter, recursive, "/copy:DATSO"]
       returnValue = Cmd.executeCommand(command, new File('.'))
-      if (returnValue > 0) {
+      if (returnValue == 1) {
+        return true
+      } else {
         try {
           // try to copy with ant
           if (file.isDirectory()) {
